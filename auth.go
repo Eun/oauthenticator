@@ -230,7 +230,7 @@ func (a *authorizer) fetchNewToken(oauthConfig *oauth2.Config) ([]byte, error) {
 	}
 	_ = httpServer.Close()
 
-	tkn, err := oauthConfig.Exchange(context.Background(), strings.TrimSpace(code))
+	tkn, err := oauthConfig.Exchange(a.ctx, strings.TrimSpace(code))
 	if err != nil {
 		return nil, fmt.Errorf("unable to exchange token: %w", err)
 	}
