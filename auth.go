@@ -140,13 +140,14 @@ func Authorize(options ...Option) (*http.Client, error) {
 	}
 
 	oauthConfig := a.createOauthConfig()
-
+	shouldWriteToken := false
 	if len(tokenBuf) == 0 {
 		var err error
 		tokenBuf, err = a.fetchNewToken(oauthConfig)
 		if err != nil {
 			return nil, fmt.Errorf("unable to fetch new token: %w", err)
 		}
+		shouldWriteToken = true
 	}
 	oauth2Token, err := a.decodeOauthToken(tokenBuf)
 	if err != nil {
@@ -160,8 +161,10 @@ func Authorize(options ...Option) (*http.Client, error) {
 	}
 
 	client := oauth2.NewClient(a.ctx, tokenSource)
-
-	if updatedOauth2Token.AccessToken != oauth2Token.AccessToken && a.tokenWriter != nil {
+	if updatedOauth2Token.AccessToken != oauth2Token.AccessToken {
+		shouldWriteToken = true
+	}
+	if shouldWriteToken && a.tokenWriter != nil {
 		buf, err := json.Marshal(updatedOauth2Token)
 		if err != nil {
 			return nil, fmt.Errorf("unable to encode token: %w", err)
