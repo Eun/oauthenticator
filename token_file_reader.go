@@ -17,9 +17,9 @@ func (t *tokenFileReader) Read(p []byte) (n int, err error) {
 		t.fileHandle, err = os.Open(t.file)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
-				return 0, nil
+				return 0, io.EOF
 			}
-			return 0, io.EOF
+			return 0, err
 		}
 	}
 
