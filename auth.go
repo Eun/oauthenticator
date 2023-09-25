@@ -13,6 +13,8 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type AuthorizeServiceHandler func(ctx context.Context, url string) error
+
 type authorizer struct {
 	ctx              context.Context
 	clientID         string
@@ -23,86 +25,9 @@ type authorizer struct {
 	redirectAddress  string
 	localBindAddress string
 
-	tokenReader io.Reader
-	tokenWriter io.Writer
-}
-
-type Option func(authorizer *authorizer) error
-
-func Context(ctx context.Context) Option {
-	return func(authorizer *authorizer) error {
-		authorizer.ctx = ctx
-		return nil
-	}
-}
-
-func ClientID(clientID string) Option {
-	return func(authorizer *authorizer) error {
-		authorizer.clientID = clientID
-		return nil
-	}
-}
-func ClientSecret(clientSecret string) Option {
-	return func(authorizer *authorizer) error {
-		authorizer.clientSecret = clientSecret
-		return nil
-	}
-}
-
-func AuthURL(authURL string) Option {
-	return func(authorizer *authorizer) error {
-		authorizer.authURL = authURL
-		return nil
-	}
-}
-func TokenURL(tokenURL string) Option {
-	return func(authorizer *authorizer) error {
-		authorizer.tokenURL = tokenURL
-		return nil
-	}
-}
-
-func Scopes(scopes ...string) Option {
-	return func(authorizer *authorizer) error {
-		authorizer.scopes = scopes
-		return nil
-	}
-}
-
-func RedirectAddress(address string) Option {
-	return func(authorizer *authorizer) error {
-		authorizer.redirectAddress = address
-		return nil
-	}
-}
-
-func LocalBindAddress(address string) Option {
-	return func(authorizer *authorizer) error {
-		authorizer.localBindAddress = address
-		return nil
-	}
-}
-
-func TokenReader(r io.Reader) Option {
-	return func(authorizer *authorizer) error {
-		authorizer.tokenReader = r
-		return nil
-	}
-}
-
-func TokenWriter(w io.Writer) Option {
-	return func(authorizer *authorizer) error {
-		authorizer.tokenWriter = w
-		return nil
-	}
-}
-
-func TokenFile(file string) Option {
-	return func(authorizer *authorizer) error {
-		authorizer.tokenReader = &tokenFileReader{file: file}
-		authorizer.tokenWriter = &tokenFileWriter{file: file}
-		return nil
-	}
+	tokenReader      io.Reader
+	tokenWriter      io.Writer
+	authorizeService AuthorizeServiceHandler
 }
 
 func Authorize(options ...Option) (*http.Client, error) {
@@ -122,6 +47,13 @@ func Authorize(options ...Option) (*http.Client, error) {
 	}
 	if a.localBindAddress == "" {
 		a.localBindAddress = ":8000"
+	}
+	if a.authorizeService == nil {
+		a.authorizeService = func(ctx context.Context, url string) error {
+			fmt.Println("Please open", url)
+			fmt.Println("Waiting for authorization...")
+			return nil
+		}
 	}
 
 	var tokenBuf []byte
@@ -221,8 +153,9 @@ func (a *authorizer) fetchNewToken(oauthConfig *oauth2.Config) ([]byte, error) {
 
 	authURL := oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline)
 
-	fmt.Println("Please open", authURL)
-	fmt.Println("Waiting for authorization...")
+	if err := a.authorizeService(a.ctx, authURL); err != nil {
+		return nil, fmt.Errorf("unable to handle authorization url")
+	}
 
 	var code string
 	select {
